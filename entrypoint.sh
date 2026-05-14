@@ -1,27 +1,21 @@
 #!/bin/sh
 set -e
 
-echo "Starting Laravel entrypoint on Render..."
+echo "Starting Laravel entrypoint on Render (SQLite)..."
 
-# Wait for database (Aiven MySQL)
-echo "Waiting for database connection on $DB_HOST:$DB_PORT..."
-until nc -z -v $DB_HOST $DB_PORT; do
-  >&2 echo "DB not ready yet - sleeping 2s"
-  sleep 2
-done
-echo "Database is ready!"
+# SQLite ke liye DB wait skip kar sakte ho
+echo "Using SQLite - No TCP database server to wait for."
 
+# Optional: Ensure database directory exists
+mkdir -p database
+touch database/database.sqlite 2>/dev/null || true
+chmod 664 database/database.sqlite 2>/dev/null || true
 
-
-# Run migrations (idempotent with --force)
 echo "Running migrations and seeders..."
-php artisan migrate:fresh --seed
+php artisan migrate:fresh --seed --force
 
-# Install Passport keys and clients (safe to run multiple times)
-# echo "Installing/Updating Passport..."
-# php artisan passport:install --force --no-interaction
-
-# Extra optimizations if needed (already in build, but harmless)
+# Cache clear & optimize
+echo "Optimizing Laravel..."
 php artisan optimize:clear
 php artisan config:cache
 php artisan route:cache
