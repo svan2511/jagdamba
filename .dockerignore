@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Laravel
+/storage/*.key
+/storage/logs/*
+!/storage/logs/.gitkeep
+/storage/framework/cache/data/*
+!/storage/framework/cache/data/.gitkeep
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitkeep
+/storage/framework/testing/*
+!/storage/framework/testing/.gitkeep
+/storage/framework/views/*
+!/storage/framework/views/.gitkeep
+/storage/app/*
+!/storage/app/.gitkeep
+/storage/public/*
+!/storage/public/.gitkeep
+/bootstrap/cache/*
+!/bootstrap/cache/.gitkeep
+.env
+.env.*
+!.env.example
+!.env.production
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE & Editor
+.idea/
+.vscode/
+*.sublime-*
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+*.log
+
+# Composer
+/vendor/bundle/
+/vendor/bin/
+composer.phar
+
+# Testing
+.phpunit.result.cache
+.phpunit.cache/
+/coverage/
+/tests/coverage/
+
+# Build artifacts
+/dist
+/.vite
+/build
+/public/build
+
+# Documentation
+*.md
+docs/

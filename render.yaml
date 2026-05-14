@@ -1,0 +1,82 @@
+# ===========================================
+# Render.com Deployment Configuration
+# ===========================================
+#
+# To deploy on Render.com:
+# 1. Create a new Web Service on Render
+# 2. Connect your GitHub repository
+# 3. Set the following:
+#    - Root Directory: hospital-api
+#    - Build Command: composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+#    - Start Command: php artisan serve --host=0.0.0.0 --port=$PORT
+#    - PHP Version: 8.3
+#
+# Required Environment Variables on Render:
+# ------------------------------------------
+# APP_NAME: Laravel
+# APP_ENV: production
+# APP_KEY: (leave empty - auto-generated)
+# APP_DEBUG: false
+# APP_URL: https://your-app-name.onrender.com
+#
+# DB_CONNECTION: mysql
+# DB_HOST: (your MySQL host from Render)
+# DB_PORT: 3306
+# DB_DATABASE: hospital_db
+# DB_USERNAME: (your MySQL username)
+# DB_PASSWORD: (your MySQL password)
+#
+# SESSION_DRIVER: database
+# CACHE_STORE: database
+# QUEUE_CONNECTION: sync
+#
+# Optional (for email):
+# MAIL_MAILER: smtp
+# MAIL_HOST: smtp.mailgun.org
+# MAIL_PORT: 587
+# MAIL_USERNAME: (your mail username)
+# MAIL_PASSWORD: (your mail password)
+# MAIL_FROM_ADDRESS: noreply@yourdomain.com
+# MAIL_FROM_NAME: "${APP_NAME}"
+# ===========================================
+
+services:
+  - type: web
+    name: hospital-api
+    env: php
+    region: singapore
+    buildCommand: composer install --no-dev --optimize-autoloader --no-interaction --no-progress
+    startCommand: php artisan serve --host=0.0.0.0 --port=$PORT
+    healthCheckPath: /api
+    plan: free
+    envVars:
+      - key: APP_NAME
+        value: "Maa Jagdamba Hospital API"
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: false
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        fromService:
+          name: hospital-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: 3306
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
