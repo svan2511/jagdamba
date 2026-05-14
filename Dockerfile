@@ -1,158 +1,63 @@
-# Use official PHP with Laravel extensions
+# Stage 1: Composer (ignore platform reqs for your lock file issue)
+FROM composer:2 AS composer
+WORKDIR /app
+COPY composer.json composer.lock* ./
+RUN composer install --no-dev --optimize-autoloader --prefer-dist --no-scripts --no-interaction --ignore-platform-reqs
+
+# Stage 2: Final image - PHP 8.3 FPM + Nginx + Supervisor
 FROM php:8.3-fpm-alpine
 
-# Install system dependencies
-RUN apk add --no-cache \
-    git \
-    curl \
-    libpng-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    oniguruma-dev \
+# Install packages + GD deps + netcat for entrypoint DB wait
+RUN apk update && apk add --no-cache \
     nginx \
     supervisor \
-    bash \
-    openssl \
-    openssl-dev \
     libzip-dev \
-    autoconf \
-    gcc \
-    g++ \
-    make
+    zip \
+    unzip \
+    git \
+    curl \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev \
+    netcat-openbsd && \
+  docker-php-ext-configure gd --with-freetype --with-jpeg && \
+  docker-php-ext-install -j$(nproc) \
+    pdo_mysql \
+    zip \
+    pcntl \
+    bcmath \
+    gd \
+    exif && \
+  apk add --no-cache --virtual .build-deps $PHPIZE_DEPS && \
+  pecl install redis && \
+  docker-php-ext-enable redis && \
+  apk del .build-deps
 
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql pdo_sqlite mbstring xmlwriter xml tokenizer gd zip opcache
+# Copy configs (same)
+COPY nginx.conf /etc/nginx/http.d/default.conf
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Install Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+# App setup
+WORKDIR /var/www/html
+COPY . /var/www/html
+COPY --from=composer /app/vendor /var/www/html/vendor
 
-WORKDIR /app
+# Permissions fix: Create missing directories first, then chown & chmod
+RUN mkdir -p /var/www/html/bootstrap/cache \
+    && mkdir -p /var/www/html/storage/framework/{cache,sessions,views} \
+    && chown -R www-data:www-data /var/www/html \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Copy composer files first for layer caching
-COPY composer.json composer.lock* ./
+# Laravel cache optimizations (now safe after COPY and mkdir)
+RUN php artisan config:cache \
+    && php artisan route:cache \
+    && php artisan view:cache
 
-# Install dependencies
-RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress --prefer-dist
-
-# Copy application
-COPY . .
-
-# Create storage directories and set permissions
-RUN mkdir -p storage/logs \
-    && mkdir -p storage/framework/cache \
-    && mkdir -p storage/framework/sessions \
-    && mkdir -p storage/framework/views \
-    && mkdir -p bootstrap/cache \
-    && mkdir -p public/storage \
-    && chown -R www-data:www-data storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
-
-# Configure PHP for production
-RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.enable_cli=1" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.memory_consumption=128" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.interned_strings_buffer=8" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.max_accelerated_files=10000" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.revalidate_freq=0" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.validate_timestamps=0" >> /usr/local/etc/php/conf.d/opcache.ini
-
-# Configure Nginx
-RUN echo '
-server {
-    listen 8080;
-    server_name _;
-    root /app/public;
-    index index.php;
-
-    charset utf-8;
-
-    location / {
-        try_files $uri $uri/ /index.php?$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    error_page 404 /index.php;
-
-    location ~ \.php$ {
-        fastcgi_pass 127.0.0.1:9000;
-        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
-        include fastcgi_params;
-        fastcgi_hide_header X-Powered-By;
-    }
-
-    location ~ /\.(?!well-known).* {
-        deny all;
-    }
-
-    # Cache static assets
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-}' > /etc/nginx/http.d/default.conf
-
-# Configure Supervisor
-RUN echo '
-[supervisord]
-nodaemon=true
-user=root
-logfile=/var/log/supervisord.log
-pidfile=/var/run/supervisord.pid
-loglevel=info
-
-[program:php-fpm]
-command=php-fpm
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-
-[program:nginx]
-command=nginx
-autostart=true
-autorestart=true
-stdout_logfile=/dev/stdout
-stdout_logfile_maxbytes=0
-stderr_logfile=/dev/stderr
-stderr_logfile_maxbytes=0
-' > /etc/supervisord.conf
-
-EXPOSE 8080
-
-# Entry point script
-COPY <<-'EOF' /entrypoint.sh
-#!/bin/bash
-set -e
-
-cd /app
-
-# Generate application key if not set
-if [ -z "$APP_KEY" ] || [ "$APP_KEY" = "base64:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx=" ]; then
-    echo "Generating application key..."
-    php artisan key:generate --force
-fi
-
-# Run migrations (comment out if you don't want auto-migrate)
-# echo "Running migrations and seeders..."
-# php artisan migrate:fresh --seed || true
-
-# Optimize Laravel
-php artisan config:cache --force || true
-php artisan route:cache || true
-php artisan view:cache || true
-
-echo "Starting services..."
-exec "$@"
-EOF
-
+# Copy entrypoint script and make it executable
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Use entrypoint to run migrations/passport at startup, then start supervisor
 ENTRYPOINT ["/entrypoint.sh"]
 
-CMD ["supervisord", "-c", "/etc/supervisord.conf"]
+EXPOSE 80
