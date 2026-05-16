@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\GalleryController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PatientController;
 use App\Http\Controllers\Api\PrescriptionController;
+use App\Http\Controllers\Api\ContactController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\ScheduleController;
@@ -30,6 +31,9 @@ Route::post('/doctors/{doctorId}/validate-slot', [ScheduleController::class, 'va
 
 // Public Reviews Routes
 Route::get('/reviews', [ReviewController::class, 'publicIndex']);
+
+// Public Contact Form
+Route::post('/contact', [ContactController::class, 'store']);
 
 // Public Gallery Routes
 Route::get('/gallery', [GalleryController::class, 'index']);
@@ -157,6 +161,13 @@ Route::middleware(['auth:sanctum', 'check.active'])->group(function () {
 
         // Report Management
         Route::post('/admin/reports', [ReportController::class, 'store']);
+
+        // Contact Management (Admin)
+        Route::get('/admin/contacts', [ContactController::class, 'index']);
+        Route::get('/admin/contacts/stats', [ContactController::class, 'stats']);
+        Route::get('/admin/contacts/{id}', [ContactController::class, 'show']);
+        Route::put('/admin/contacts/{id}', [ContactController::class, 'update']);
+        Route::delete('/admin/contacts/{id}', [ContactController::class, 'destroy']);
 
         // Doctor Schedule Management
         Route::get('/admin/schedules', [ScheduleController::class, 'adminIndex']);

@@ -172,7 +172,7 @@ class DoctorController extends Controller
                     'qualification' => $doctor->qualification,
                     'experience_years' => $doctor->experience_years,
                     'bio' => $doctor->bio,
-                    'image' => $doctor->image,
+                    'image' => $doctor->image ? url($doctor->image) : null,
                     'consultation_fee' => $doctor->consultation_fee,
                     'is_available' => $doctor->is_available,
                     'is_verified' => $doctor->is_verified,
